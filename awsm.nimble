@@ -7,7 +7,6 @@ author        = "!!Dean"
 description   = "Actors with state machines"
 license       = "MIT"
 srcDir        = "src"
-bin           = @["awsm"]
 
 # Dependencies
 
