@@ -15,6 +15,12 @@ test "Converted states can test for state equality":
   a.state = top.toEventHandler
   check a.state == top
 
+test "Converted states can still access custom fields":
+  var a = newAllTransAwsm()
+  a.foo = 42
+  a.state = top.toEventHandler
+  check a.foo == 42
+
 #test "AllTransAwsm initializes to s211":
 #  var a = newAllTransAwsm()
 #  a.state = initial.toEventHandler
