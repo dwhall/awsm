@@ -1,6 +1,6 @@
 #!fmt: off
 
-import std/unittest
+import unittest2
 
 include awsm_all_trans
 
@@ -21,8 +21,8 @@ test "Converted states can still access custom fields":
   a.state = top.toEventHandler
   check a.foo == 42
 
-#test "AllTransAwsm initializes to s211":
-#  var a = newAllTransAwsm()
-#  a.state = initial.toEventHandler
-#  a.init(ReservedEvt[InitSig])
-#  check a.state == s211.toEventHandler
+test "AllTransAwsm initializes to s211":
+  var a = newAllTransAwsm()
+  a.state = initial.toEventHandler
+  a.init(ReservedEvt[InitSig])
+  check a.state == s211.toEventHandler
