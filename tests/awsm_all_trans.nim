@@ -1,6 +1,6 @@
 #!fmt: off
 
-# This state machine  possesses every type of state transitions,
+# This state machine possesses every type of state transitions,
 # making it a good example for testing the code which handles transitions.
 # Reference: PSiCC2, Figure 2.11, p. 88 (pdf p.105)
 

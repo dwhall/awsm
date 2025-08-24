@@ -1,6 +1,6 @@
 ## Copyright 2025 Dean Hall
 ##
-## Actor with State Machine (Awsm)
+## awsm: actors with state machines.
 ## an event-driven framework for real-time concurrency in embedded systems
 ##
 
