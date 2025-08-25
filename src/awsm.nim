@@ -72,11 +72,9 @@ const
     Event(sig: InitSig, val: default(Value)),
   ]
 
-template toEventHandler*[T](
-    handler: proc(self: T, event: Event): HandlerReturn {.nimcall.}
-): proc(self: Awsm, event: Event): HandlerReturn {.nimcall.} =
+template toEventHandler*[T: Awsm](handler: proc(self: T, event: Event): HandlerReturn {.nimcall.} ): EventHandler =
   ## Converts Awsm subtype EventHandler to Awsm EventHandler.
-  ## .nimcall forces all state handlers to be written in Nim for typesafety
+  ## The .nimcall pragma forces all state handlers to be written in Nim for typesafety
   cast[EventHandler](handler)
 
 func newAwsm*(
