@@ -1,6 +1,7 @@
 #!fmt: off
 
-# This state machine possesses every type of state transitions,
+# This is a pedagogical state machine that contains all possible state 
+# transition topologies up to four levels of state nesting;
 # making it a good example for testing the code which handles transitions.
 # Reference: PSiCC2, Figure 2.11, p. 88 (pdf p.105)
 

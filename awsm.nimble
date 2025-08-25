@@ -11,3 +11,4 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.2.0"
+requires "unittest2 >= 0.2.4"
