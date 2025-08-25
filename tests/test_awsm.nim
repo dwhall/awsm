@@ -27,8 +27,14 @@ test "Transition from initial state through all InitSig transitions":
   a.init(ReservedEvt[InitSig])
   check a.state == s211.toEventHandler
 
-test "Transition to current state (no change)":
+test "Transition to current state":
   var a = newAllTransAwsm()
   a.state = s.toEventHandler
   a.dispatch(IEvt)
+  check a.state == s.toEventHandler
+
+test "Transition up one state":
+  var a = newAllTransAwsm()
+  a.state = s1.toEventHandler
+  a.dispatch(DEvt)
   check a.state == s.toEventHandler
