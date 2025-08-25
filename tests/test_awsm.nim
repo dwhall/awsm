@@ -21,8 +21,14 @@ test "Converted states can still access custom fields":
   a.state = top.toEventHandler
   check a.foo == 42
 
-test "AllTransAwsm initializes to s211":
+test "Transition from initial state through all InitSig transitions":
   var a = newAllTransAwsm()
   a.state = initial.toEventHandler
   a.init(ReservedEvt[InitSig])
   check a.state == s211.toEventHandler
+
+test "Transition to current state (no change)":
+  var a = newAllTransAwsm()
+  a.state = s.toEventHandler
+  a.dispatch(IEvt)
+  check a.state == s.toEventHandler
