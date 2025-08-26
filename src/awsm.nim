@@ -164,17 +164,17 @@ proc handleSelfTransition(self: Awsm, state: EventHandler): int8 {.inline.} =
   discard exit(self, state)
   return 0'i8
 
-proc handleTransitionToParent(self: Awsm, source: EventHandler, target: EventHandler): int8 {.inline.} =
-  ## Handle transition to parent state
+proc handleTransitionToChild(self: Awsm, source: EventHandler, target: EventHandler): int8 {.inline.} =
+  ## Handle transition to child state
   discard trig(self, target, EmptySig)
-  let parent = self.state
-  if source == parent:
+  let child = self.state
+  if source == child:
     return 0'i8
   else:
     return -1'i8  # Indicates need for complex transition handling
 
-proc handleTransitionToChild(self: Awsm, source: EventHandler, target: EventHandler): int8 {.inline.} =
-  ## Handle transition to child state
+proc handleTransitionToParent(self: Awsm, source: EventHandler, target: EventHandler): int8 {.inline.} =
+  ## Handle transition to parent state
   discard trig(self, source, EmptySig)
   if self.state == target:
     discard exit(self, source)
@@ -284,9 +284,11 @@ proc dispatch*(self: Awsm, evt: Event) =
     if source == target:
       pathIdx = handleSelfTransition(self, source)
     else:
-      pathIdx = handleTransitionToParent(self, source, target)
+      pathIdx = handleTransitionToChild(self, source, target)
+      if pathIdx >= 0: echo "child"
       if pathIdx < 0:
-        pathIdx = handleTransitionToChild(self, source, target)
+        pathIdx = handleTransitionToParent(self, source, target)
+        if pathIdx >= 0: echo "parent"
         if pathIdx < 0:
           var targetState = target
           pathIdx = handleComplexTransition(self, path, source, targetState)

@@ -33,7 +33,7 @@ test "Transition to current state":
   a.dispatch(IEvt)
   check a.state == s.toEventHandler
 
-test "Transition up one state":
+test "Transition to parent state":
   var a = newAllTransAwsm()
   a.state = s1.toEventHandler
   a.dispatch(DEvt)
