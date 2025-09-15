@@ -38,3 +38,22 @@ test "Transition to parent state":
   a.state = s1.toEventHandler
   a.dispatch(DEvt)
   check a.state == s.toEventHandler
+
+test "Transition to sub state":
+  var a = newAllTransAwsm()
+  a.state = s1.toEventHandler
+  a.dispatch(BEvt)
+  check a.state == s11.toEventHandler
+
+#test "Transition up two states":
+#  var a = newAllTransAwsm
+#  a.state = s11.toEventHandler
+#  a.dispatch(HEvt)
+#  check a.state == s.toEventHandler
+
+#test "Transition down two states":
+#  var a = newAllTransAwsm()
+#  a.state = s.toEventHandler
+#  a.dispatch(EEvt)
+#  check a.state == s11.toEventHandler
+

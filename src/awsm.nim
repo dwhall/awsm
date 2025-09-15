@@ -35,6 +35,7 @@ type
   #    0 .. 127 : system and system-wide user events
   # -128 ..  -1 : user events encapsulated in a software unit
   Signal* = int8
+
 const sizeOfSignal = sizeof(Signal)
 type
   SysSignal* {.size: sizeOfSignal.} = enum
@@ -49,12 +50,11 @@ type
     sig*: Signal
     val*: Value
 
-  Actor = ref object of RootObj
-    ## Actors have an event queue and can spawn children
+  Actor = ref object of RootObj ## Actors have an event queue and can spawn children
     evtQueue: seq[Event]
     children: seq[Awsm]
-  Awsm* = ref object of Actor
-    ## Awsm is an Actor with a state machine
+
+  Awsm* = ref object of Actor ## Awsm is an Actor with a state machine
     state*: EventHandler
 
   EventHandler* = proc(self: Awsm, event: Event): HandlerReturn {.nimcall.}
@@ -72,7 +72,9 @@ const
     Event(sig: InitSig, val: default(Value)),
   ]
 
-template toEventHandler*[T: Awsm](handler: proc(self: T, event: Event): HandlerReturn {.nimcall.} ): EventHandler =
+template toEventHandler*[T: Awsm](
+    handler: proc(self: T, event: Event): HandlerReturn {.nimcall.}
+): EventHandler =
   ## Converts Awsm subtype EventHandler to Awsm EventHandler.
   ## The .nimcall pragma forces all state handlers to be written in Nim for typesafety
   cast[EventHandler](handler)
@@ -80,7 +82,7 @@ template toEventHandler*[T: Awsm](handler: proc(self: T, event: Event): HandlerR
 func newAwsm*(
     evtQueueDepth: Natural, numChildren: Natural, initialState: EventHandler
 ): Awsm =
-  ## Create a new Awsm with the given event queue depth and number of children
+  ## Create a new Awsm with the given event queue depth, number of children and initial state
   result.evtQueue = newSeqOfCap[Event](evtQueueDepth)
   result.children = newSeqOfCap[Awsm](numChildren)
   result.state = initialState
@@ -96,25 +98,25 @@ proc top*(self: Awsm, evt: Event): HandlerReturn {.nimcall.} =
   RetIgnored
 
 template returnTransitioned*(self: untyped, newState: untyped) =
-  ## Make sure the handler returns "RetTransitioned" when the state changes
+  ## Ensures the handler returns "RetTransitioned" when the state changes
   self.state = newState.toEventHandler
   result = RetTransitioned
 
-template returnSuper*(self: Awsm, newState: untyped) =
-  ## Make sure the handler returns "RetSuper" when the state changes
+template returnSuper*(self: untyped, newState: untyped) =
+  ## Ensures the handler returns "RetSuper" when the state changes
   self.state = newState.toEventHandler
   result = RetSuper
 
 template trig*(self: Awsm, state: EventHandler, sig: Signal): HandlerReturn =
-  ## Trigger an event with the given signal and value
+  ## Triggers an event with the given reserved signal
   state(self, ReservedEvt[sig])
 
 template enter*(self: Awsm, state: EventHandler): HandlerReturn =
-  ## Trigger entry action in an Awsm
+  ## Triggers entry action in an Awsm
   trig(self, state, EntrySig)
 
 template exit*(self: Awsm, state: EventHandler): HandlerReturn =
-  ## Trigger exit action in an Awsm
+  ## Triggers exit action in an Awsm
   trig(self, state, ExitSig)
 
 ####
@@ -150,7 +152,9 @@ proc init*(self: Awsm, evt: Event) =
       break
   self.state = t
 
-proc travelToTransitionSource(self: Awsm, current: var EventHandler, source: EventHandler) =
+proc travelToTransitionSource(
+    self: Awsm, current: var EventHandler, source: EventHandler
+) =
   ## Exit current state up to the transition source
   while current != source:
     if RetHandled == trig(self, current, ExitSig):
@@ -159,31 +163,40 @@ proc travelToTransitionSource(self: Awsm, current: var EventHandler, source: Eve
     # self.state holds the superstate
     current = self.state
 
-proc handleSelfTransition(self: Awsm, state: EventHandler): int8 {.inline.} =
-  ## Handle transition from state to itself
+proc handleTransitionToSameState(self: Awsm, state: EventHandler): int8 {.inline.} =
+  # Exit the current state.  Re-entering it happens when dispatch() calls executeEntryPath()
   discard exit(self, state)
   return 0'i8
 
-proc handleTransitionToChild(self: Awsm, source: EventHandler, target: EventHandler): int8 {.inline.} =
-  ## Handle transition to child state
+proc handleTransitionToSubState(
+    self: Awsm, source: EventHandler, target: EventHandler
+): int8 {.inline.} =
   discard trig(self, target, EmptySig)
-  let child = self.state
-  if source == child:
+  if self.state == source:
+    self.state = target
+    discard enter(self, target)
     return 0'i8
   else:
-    return -1'i8  # Indicates need for complex transition handling
+    return -1'i8 # Indicates need for complex transition handling
 
-proc handleTransitionToParent(self: Awsm, source: EventHandler, target: EventHandler): int8 {.inline.} =
-  ## Handle transition to parent state
+proc handleTransitionToParentState(
+    self: Awsm, source: EventHandler, target: EventHandler
+): int8 {.inline.} =
   discard trig(self, source, EmptySig)
   if self.state == target:
     discard exit(self, source)
     return 0'i8
   else:
-    return -1'i8  # Indicates need for complex transition handling
+    return -1'i8 # Indicates need for complex transition handling
 
-proc handleComplexTransition(self: Awsm, path: var array[MaxStateNestDepth, EventHandler], source: EventHandler, target: var EventHandler): int8 =
-  ## Handle complex state transitions (LCA algorithm)
+proc handleComplexTransition(
+    self: Awsm,
+    path: var array[MaxStateNestDepth, EventHandler],
+    source: EventHandler,
+    target: var EventHandler,
+): int8 =
+  # The Least-Common-Ancestor (LCA) algorithm traverses up toward the root
+  # to the LCA, then back down to the target state.
   var pathIdx: int8
   var pathIdxHelper: int8
   var r: HandlerReturn
@@ -244,15 +257,17 @@ proc handleComplexTransition(self: Awsm, path: var array[MaxStateNestDepth, Even
 
     return pathIdx
 
-proc executeEntryPath(self: Awsm, path: array[MaxStateNestDepth, EventHandler], pathIdx: int8) =
-  ## Execute entry actions along the path to target state
+proc executeEntryPath(
+    self: Awsm, path: array[MaxStateNestDepth, EventHandler], pathIdx: int8
+) =
+  ## Executes entry actions along the path to target state
   var idx = pathIdx
   while idx >= 0'i8:
     discard enter(self, path[idx])
     dec idx
 
 proc handleHierarchicalEvent(self: Awsm, evt: Event): HandlerReturn =
-  ## Process event hierarchically up the state chain
+  ## Processes event hierarchically up the state chain
   var s: EventHandler
   var r: HandlerReturn
 
@@ -265,7 +280,7 @@ proc handleHierarchicalEvent(self: Awsm, evt: Event): HandlerReturn =
   return r
 
 proc dispatch*(self: Awsm, evt: Event) =
-  ## Have the current state handle the event
+  ## The current state handles the event
   # Simplified main dispatch logic
   var path: array[MaxStateNestDepth, EventHandler]
   var current: EventHandler = self.state
@@ -282,26 +297,20 @@ proc dispatch*(self: Awsm, evt: Event) =
 
     # Determine transition type and handle accordingly
     if source == target:
-      pathIdx = handleSelfTransition(self, source)
+      pathIdx = handleTransitionToSameState(self, source)
     else:
-      pathIdx = handleTransitionToChild(self, source, target)
-      if pathIdx >= 0: echo "child"
-      if pathIdx < 0:
-        pathIdx = handleTransitionToParent(self, source, target)
-        if pathIdx >= 0: echo "parent"
-        if pathIdx < 0:
+      pathIdx = handleTransitionToSubState(self, source, target)
+      if pathIdx < 0'i8:
+        pathIdx = handleTransitionToParentState(self, source, target)
+        if pathIdx < 0'i8:
           var targetState = target
           pathIdx = handleComplexTransition(self, path, source, targetState)
           current = targetState
 
     # Restore target and execute entry path if needed
-    if pathIdx >= 0:
+    if pathIdx >= 0'i8:
       path[0] = target
       executeEntryPath(self, path, pathIdx)
-
   else:
     # Only restore original state if no transition occurred
     self.state = current
-
-
-
