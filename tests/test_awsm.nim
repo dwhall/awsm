@@ -28,6 +28,9 @@ test "Transition from initial state through all InitSig transitions":
   check a.state == s211.toEventHandler
 
 test "Transition to current state":
+  # A transition to current state involves exit and re-entry.
+  # To remain in the current state without exit and re-entry,
+  # just return RetHandled.
   var a = newAllTransAwsm()
   a.state = s.toEventHandler
   a.dispatch(IEvt)
@@ -45,15 +48,15 @@ test "Transition to sub state":
   a.dispatch(BEvt)
   check a.state == s11.toEventHandler
 
-#test "Transition up two states":
-#  var a = newAllTransAwsm
-#  a.state = s11.toEventHandler
-#  a.dispatch(HEvt)
-#  check a.state == s.toEventHandler
+test "Transition up two states":
+  var a = newAllTransAwsm()
+  a.state = s11.toEventHandler
+  a.dispatch(HEvt)
+  check a.state == s.toEventHandler
 
-#test "Transition down two states":
-#  var a = newAllTransAwsm()
-#  a.state = s.toEventHandler
-#  a.dispatch(EEvt)
-#  check a.state == s11.toEventHandler
+test "Transition down two states":
+  var a = newAllTransAwsm()
+  a.state = s.toEventHandler
+  a.dispatch(EEvt)
+  check a.state == s11.toEventHandler
 

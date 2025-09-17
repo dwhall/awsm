@@ -195,67 +195,36 @@ proc handleComplexTransition(
     source: EventHandler,
     target: var EventHandler,
 ): int8 =
-  # The Least-Common-Ancestor (LCA) algorithm traverses up toward the root
-  # to the LCA, then back down to the target state.
   var pathIdx: int8
   var pathIdxHelper: int8
   var r: HandlerReturn
 
-  if self.state == path[0]:
+  # Store original target state
+  let originalTarget = target
+
+  pathIdxHelper = 0'i8
+  pathIdx = 0'i8  # Start at 0 instead of 1
+  path[0] = target
+  target = self.state
+
+  r = trig(self, path[0], EmptySig)
+
+  # Find the Least Common Ancestor (LCA)
+  while r == RetSuper:
+    inc pathIdx
+    path[pathIdx] = self.state
+    if self.state == source:
+      r = RetHandled
+    else:
+      r = trig(self, self.state, EmptySig)
+
+  if pathIdxHelper == 0'i8:
     discard exit(self, source)
-    return 0'i8
-  else:
-    pathIdxHelper = 0'i8
-    pathIdx = 1'i8
-    path[1] = target
-    target = self.state
-    r = trig(self, path[1], EmptySig)
 
-    # Find the Least Common Ancestor (LCA)
-    while r == RetSuper:
-      inc pathIdx
-      path[pathIdx] = self.state
-      if self.state == source:
-        pathIdxHelper = 1'i8
-        dec pathIdx
-        r = RetHandled
-      else:
-        r = trig(self, self.state, EmptySig)
-
-    if pathIdxHelper == 0'i8:
-      discard exit(self, source)
-      # Check the rest of source->super path
-      pathIdxHelper = pathIdx
-      r = RetIgnored
-
-      # Find if target is in the exit path
-      while pathIdxHelper >= 0'i8:
-        if target == path[pathIdxHelper]:
-          r = RetHandled
-          pathIdx = pathIdxHelper - 1'i8
-          break
-        dec pathIdxHelper
-
-      # Exit states until LCA is found
-      if r != RetHandled:
-        while true:
-          if RetHandled == trig(self, target, ExitSig):
-            discard trig(self, target, EmptySig)
-          target = self.state
-
-          # Check if we've reached the LCA
-          pathIdxHelper = pathIdx
-          while pathIdxHelper >= 0'i8:
-            if target == path[pathIdxHelper]:
-              pathIdx = pathIdxHelper - 1'i8
-              r = RetHandled
-              break
-            dec pathIdxHelper
-
-          if r == RetHandled:
-            break
-
-    return pathIdx
+  # Restore target state
+  target = originalTarget
+  self.state = originalTarget
+  return pathIdx
 
 proc executeEntryPath(
     self: Awsm, path: array[MaxStateNestDepth, EventHandler], pathIdx: int8
