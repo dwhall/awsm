@@ -1,6 +1,6 @@
 #!fmt: off
 
-# This is a pedagogical state machine that contains all possible state 
+# This is a pedagogical state machine that contains all possible state
 # transition topologies up to four levels of state nesting;
 # making it a good example for testing the code which handles transitions.
 # Reference: PSiCC2, Figure 2.11, p. 88 (pdf p.105)
@@ -13,6 +13,8 @@ type
 
   AllTransAwsm = ref object of Awsm
     foo: int
+    entryCount: int # strictly for testing
+    exitCount: int  # strictly for testing
 
 const
   ASig = Signal(A)
@@ -55,8 +57,10 @@ proc s(self: AllTransAwsm, evt: Event): HandlerReturn =
   of InitSig:
     returnTransitioned(self, s11)
   of EntrySig:
+    inc self.entryCount
     return RetHandled
   of ExitSig:
+    inc self.exitCount
     return RetHandled
   of ESig:
     returnTransitioned(self, s11)
@@ -71,8 +75,10 @@ proc s1(self: AllTransAwsm, evt: Event): HandlerReturn =
   of InitSig:
     returnTransitioned(self, s11)
   of EntrySig:
+    inc self.entryCount
     return RetHandled
   of ExitSig:
+    inc self.exitCount
     return RetHandled
   of ASig:
     returnTransitioned(self, s1)

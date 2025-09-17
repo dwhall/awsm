@@ -27,14 +27,26 @@ test "Transition from initial state through all InitSig transitions":
   a.init(ReservedEvt[InitSig])
   check a.state == s211.toEventHandler
 
-test "Transition to current state":
-  # A transition to current state involves exit and re-entry.
-  # To remain in the current state without exit and re-entry,
-  # just return RetHandled.
+test "Remain in current state":
   var a = newAllTransAwsm()
   a.state = s.toEventHandler
+  a.entryCount = 0
+  a.exitCount = 0
   a.dispatch(IEvt)
+  check a.entryCount == 0
+  check a.exitCount == 0
   check a.state == s.toEventHandler
+
+test "Transition to current state":
+  # A transition to current state involves exit and re-entry.
+  var a = newAllTransAwsm()
+  a.state = s1.toEventHandler
+  a.entryCount = 0
+  a.exitCount = 0
+  a.dispatch(AEvt)
+  check a.entryCount == 1
+  check a.exitCount == 1
+  check a.state == s1.toEventHandler
 
 test "Transition to parent state":
   var a = newAllTransAwsm()
