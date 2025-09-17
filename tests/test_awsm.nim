@@ -54,6 +54,14 @@ test "Transition to parent state":
   a.dispatch(DEvt)
   check a.state == s.toEventHandler
 
+test "Transition to parent state should not re-enter parent":
+  var a = newAllTransAwsm()
+  a.state = s1.toEventHandler
+  a.entryCount = 0
+  a.dispatch(DEvt)
+  check a.entryCount == 0
+  check a.state == s.toEventHandler
+
 test "Transition to sub state":
   var a = newAllTransAwsm()
   a.state = s1.toEventHandler
@@ -72,3 +80,24 @@ test "Transition down two states":
   a.dispatch(EEvt)
   check a.state == s11.toEventHandler
 
+test "Transition up one, down one":
+  var a = newAllTransAwsm()
+  a.state = s1.toEventHandler
+  a.entryCount = 0
+  a.exitCount = 0
+  a.dispatch(CEvt)
+  # should exit the source and enter the target (s2 doesn't affect counts)
+  check a.entryCount == 0
+  check a.exitCount == 1
+  check a.state == s2.toEventHandler
+
+test "Transition up one, down one (reverse from other test)":
+  var a = newAllTransAwsm()
+  a.state = s2.toEventHandler
+  a.entryCount = 0
+  a.exitCount = 0
+  a.dispatch(CEvt)
+  # should exit the source and enter the target (s2 doesn't affect counts)
+  check a.entryCount == 1
+  check a.exitCount == 0
+  check a.state == s1.toEventHandler

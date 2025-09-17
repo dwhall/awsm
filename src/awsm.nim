@@ -185,7 +185,8 @@ proc handleTransitionToParentState(
   discard trig(self, source, EmptySig)
   if self.state == target:
     discard exit(self, source)
-    return 0'i8
+    self.state = target
+    return -2'i8  # Special return value to indicate successful parent transition
   else:
     return -1'i8 # Indicates need for complex transition handling
 
@@ -196,30 +197,27 @@ proc handleComplexTransition(
     target: var EventHandler,
 ): int8 =
   var pathIdx: int8
-  var pathIdxHelper: int8
   var r: HandlerReturn
 
   # Store original target state
   let originalTarget = target
 
-  pathIdxHelper = 0'i8
-  pathIdx = 0'i8  # Start at 0 instead of 1
-  path[0] = target
+  pathIdx = -1'i8  # Start at -1 to avoid re-entering states
   target = self.state
 
-  r = trig(self, path[0], EmptySig)
+  r = trig(self, target, EmptySig)
 
   # Find the Least Common Ancestor (LCA)
   while r == RetSuper:
-    inc pathIdx
-    path[pathIdx] = self.state
-    if self.state == source:
-      r = RetHandled
-    else:
+    if self.state != source:  # Only add to path if not moving upward
+      inc pathIdx
+      path[pathIdx] = self.state
       r = trig(self, self.state, EmptySig)
+    else:
+      r = RetHandled
 
-  if pathIdxHelper == 0'i8:
-    discard exit(self, source)
+  # Exit source state if needed
+  discard exit(self, source)
 
   # Restore target state
   target = originalTarget
@@ -271,6 +269,8 @@ proc dispatch*(self: Awsm, evt: Event) =
       pathIdx = handleTransitionToSubState(self, source, target)
       if pathIdx < 0'i8:
         pathIdx = handleTransitionToParentState(self, source, target)
+        if pathIdx == -2'i8:  # Parent transition completed
+          return  # Skip entry actions
         if pathIdx < 0'i8:
           var targetState = target
           pathIdx = handleComplexTransition(self, path, source, targetState)
