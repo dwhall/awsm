@@ -68,6 +68,13 @@ test "Transition to sub state":
   a.dispatch(BEvt)
   check a.state == s11.toEventHandler
 
+test "Transition to sub state should not exit source":
+  var a = newAllTransAwsm()
+  a.state = s1.toEventHandler
+  a.exitCount = 0
+  a.dispatch(BEvt)
+  check a.exitCount == 0
+
 test "Transition up two states":
   var a = newAllTransAwsm()
   a.state = s11.toEventHandler
@@ -101,3 +108,9 @@ test "Transition up one, down one (reverse from other test)":
   check a.entryCount == 1
   check a.exitCount == 0
   check a.state == s1.toEventHandler
+
+test "Transition up two, down two":
+  var a = newAllTransAwsm()
+  a.state = s21.toEventHandler
+  a.dispatch(GEvt)
+  check a.state == s11.toEventHandler
