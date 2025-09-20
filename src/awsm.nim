@@ -59,6 +59,8 @@ type
 
   EventHandler* = proc(self: Awsm, event: Event): HandlerReturn {.nimcall.}
 
+  TransitionPath = array[MaxStateNestDepth, EventHandler]
+
 const
   EmptySig* = Signal(Empty)
   EntrySig* = Signal(Entry)
@@ -129,7 +131,7 @@ proc init*(self: Awsm, evt: Event) =
   # Start at the top state
   var t: EventHandler = top
   while true:
-    var path: array[MaxStateNestDepth, EventHandler]
+    var path: TransitionPath
     var pathIdx = 0'i8
     # Save the target of the initial transition
     path[0] = self.state
@@ -192,7 +194,7 @@ proc handleTransitionToParentState(
 
 proc handleComplexTransition(
     self: Awsm,
-    path: var array[MaxStateNestDepth, EventHandler],
+    path: var TransitionPath,
     source: EventHandler,
     target: var EventHandler,
 ): int8 =
@@ -224,9 +226,7 @@ proc handleComplexTransition(
   self.state = originalTarget
   return pathIdx
 
-proc executeEntryPath(
-    self: Awsm, path: array[MaxStateNestDepth, EventHandler], pathIdx: int8
-) =
+proc executeEntryPath(self: Awsm, path: TransitionPath, pathIdx: int8) =
   ## Executes entry actions along the path to target state
   var idx = pathIdx
   while idx >= 0'i8:
@@ -249,7 +249,7 @@ proc handleHierarchicalEvent(self: Awsm, evt: Event): HandlerReturn =
 proc dispatch*(self: Awsm, evt: Event) =
   ## The current state handles the event
   # Simplified main dispatch logic
-  var path: array[MaxStateNestDepth, EventHandler]
+  var path: TransitionPath
   var current: EventHandler = self.state
   var pathIdx: int8
 
