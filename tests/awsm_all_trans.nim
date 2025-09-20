@@ -49,7 +49,7 @@ proc initial(self: AllTransAwsm, evt: Event): HandlerReturn =
 
 proc newAllTransAwsm(): AllTransAwsm =
   var self = AllTransAwsm()
-  self.state = initial.toEventHandler
+  self.currentHandler = initial.toEventHandler
   result = self
 
 proc s(self: AllTransAwsm, evt: Event): HandlerReturn =

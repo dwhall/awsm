@@ -55,7 +55,7 @@ type
     children: seq[Awsm]
 
   Awsm* = ref object of Actor ## Awsm is an Actor with a state machine
-    state*: EventHandler
+    currentHandler*: EventHandler
 
   EventHandler* = proc(self: Awsm, event: Event): HandlerReturn {.nimcall.}
 
@@ -87,7 +87,7 @@ func newAwsm*(
   ## Create a new Awsm with the given event queue depth, number of children and initial state
   result.evtQueue = newSeqOfCap[Event](evtQueueDepth)
   result.children = newSeqOfCap[Awsm](numChildren)
-  result.state = initialState
+  result.currentHandler = initialState
 
 func postEvent*(self: Awsm, evt: Event) {.inline.} =
   ## Post an event to the Awsm's queue
@@ -101,12 +101,12 @@ proc top*(self: Awsm, evt: Event): HandlerReturn {.nimcall.} =
 
 template returnTransitioned*(self: untyped, newState: untyped) =
   ## Ensures the handler returns "RetTransitioned" when the state changes
-  self.state = newState.toEventHandler
+  self.currentHandler = newState.toEventHandler
   result = RetTransitioned
 
 template returnSuper*(self: untyped, newState: untyped) =
   ## Ensures the handler returns "RetSuper" when the state changes
-  self.state = newState.toEventHandler
+  self.currentHandler = newState.toEventHandler
   result = RetSuper
 
 template trig*(self: Awsm, state: EventHandler, sig: Signal): HandlerReturn =
@@ -126,7 +126,7 @@ template exit*(self: Awsm, state: EventHandler): HandlerReturn =
 proc init*(self: Awsm, evt: Event) =
   ## Execute the top-most initial transition and enter the target
   # Translated from PSiCC2.pdf, Listing 4.10, p 187
-  let r = self.state(self, evt)
+  let r = self.currentHandler(self, evt)
   assert r == RetTransitioned #, "Initial transition must return RetTransitioned"
   # Start at the top state
   var t: EventHandler = top
@@ -134,14 +134,14 @@ proc init*(self: Awsm, evt: Event) =
     var path: TransitionPath
     var pathIdx = 0'i8
     # Save the target of the initial transition
-    path[0] = self.state
-    discard trig(self, self.state, EmptySig)
-    while self.state != t:
+    path[0] = self.currentHandler
+    discard trig(self, self.currentHandler, EmptySig)
+    while self.currentHandler != t:
       inc pathIdx
-      path[pathIdx] = self.state
-      discard trig(self, self.state, EmptySig)
+      path[pathIdx] = self.currentHandler
+      discard trig(self, self.currentHandler, EmptySig)
     # Restore the target of the initial transition
-    self.state = path[0]
+    self.currentHandler = path[0]
     # Retrace the entry path in reverse (desired) order
     while true:
       discard enter(self, path[pathIdx])
@@ -152,7 +152,7 @@ proc init*(self: Awsm, evt: Event) =
     t = path[0]
     if RetTransitioned != self.trig(t, InitSig):
       break
-  self.state = t
+  self.currentHandler = t
 
 proc travelToTransitionSource(
     self: Awsm, current: var EventHandler, source: EventHandler
@@ -162,8 +162,8 @@ proc travelToTransitionSource(
     if RetHandled == trig(self, current, ExitSig):
       # Find superstate of current
       discard trig(self, current, EmptySig)
-    # self.state holds the superstate
-    current = self.state
+    # self.currentHandler holds the superstate
+    current = self.currentHandler
 
 proc handleTransitionToSameState(self: Awsm, state: EventHandler): int8 {.inline.} =
   # Exit the current state.  Re-entering it happens when dispatch() calls executeEntryPath()
@@ -174,8 +174,8 @@ proc handleTransitionToSubState(
     self: Awsm, source: EventHandler, target: EventHandler
 ): int8 {.inline.} =
   discard trig(self, target, EmptySig)
-  if self.state == source:
-    self.state = target
+  if self.currentHandler == source:
+    self.currentHandler = target
     discard enter(self, target)
     return 0'i8
   else:
@@ -185,9 +185,9 @@ proc handleTransitionToParentState(
     self: Awsm, source: EventHandler, target: EventHandler
 ): int8 {.inline.} =
   discard trig(self, source, EmptySig)
-  if self.state == target:
+  if self.currentHandler == target:
     discard exit(self, source)
-    self.state = target
+    self.currentHandler = target
     return -2'i8  # Special return value to indicate successful parent transition
   else:
     return -1'i8 # Indicates need for complex transition handling
@@ -205,16 +205,16 @@ proc handleComplexTransition(
   let originalTarget = target
 
   pathIdx = -1'i8  # Start at -1 to avoid re-entering states
-  target = self.state
+  target = self.currentHandler
 
   r = trig(self, target, EmptySig)
 
   # Find the Least Common Ancestor (LCA)
   while r == RetSuper:
-    if self.state != source:  # Only add to path if not moving upward
+    if self.currentHandler != source:  # Only add to path if not moving upward
       inc pathIdx
-      path[pathIdx] = self.state
-      r = trig(self, self.state, EmptySig)
+      path[pathIdx] = self.currentHandler
+      r = trig(self, self.currentHandler, EmptySig)
     else:
       r = RetHandled
 
@@ -223,7 +223,7 @@ proc handleComplexTransition(
 
   # Restore target state
   target = originalTarget
-  self.state = originalTarget
+  self.currentHandler = originalTarget
   return pathIdx
 
 proc executeEntryPath(self: Awsm, path: TransitionPath, pathIdx: int8) =
@@ -239,7 +239,7 @@ proc handleHierarchicalEvent(self: Awsm, evt: Event): HandlerReturn =
   var r: HandlerReturn
 
   while true:
-    s = self.state
+    s = self.currentHandler
     r = s(self, evt)
     if r != RetSuper:
       break
@@ -250,14 +250,14 @@ proc dispatch*(self: Awsm, evt: Event) =
   ## The current state handles the event
   # Simplified main dispatch logic
   var path: TransitionPath
-  var current: EventHandler = self.state
+  var current: EventHandler = self.currentHandler
   var pathIdx: int8
 
   # Process the event hierarchically
   let r = handleHierarchicalEvent(self, evt)
 
   if r == RetTransitioned:
-    let target = self.state
+    let target = self.currentHandler
     let source = current
 
     travelToTransitionSource(self, current, source)
@@ -282,4 +282,4 @@ proc dispatch*(self: Awsm, evt: Event) =
       executeEntryPath(self, path, pathIdx)
   else:
     # Only restore original state if no transition occurred
-    self.state = current
+    self.currentHandler = current
