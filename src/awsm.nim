@@ -74,6 +74,10 @@ const
     Event(sig: InitSig, val: default(Value)),
   ]
 
+when not defined(release):
+  func `$`*(s: EventHandler): string =
+    result = s.repr
+
 template toEventHandler*[T: Awsm](
     handler: proc(self: T, event: Event): HandlerReturn {.nimcall.}
 ): EventHandler =
