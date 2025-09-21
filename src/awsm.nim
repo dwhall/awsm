@@ -38,14 +38,20 @@ type
 
 const sizeOfSignal = sizeof(Signal)
 type
-  SysSignal* {.size: sizeOfSignal.} = enum
+  ## System signals are not exported so that the user
+  ## cannot post/publish these signals
+  SysSignal {.size: sizeOfSignal.} = enum
     Empty
     Entry
     Exit
     Init
-    User
-    Priv = -128
 
+  ## Private signals can only be sent through post() to self or child
+  PrivateSignalRange* = Signal.low .. Signal(pred SysSignal.low)
+  ## Public signals can be sent through post() or publish()
+  PublicSignalRange* = Signal(succ SysSignal.high) .. Signal.high
+
+type
   Event* = object
     sig*: Signal
     val*: Value
@@ -62,11 +68,12 @@ type
   TransitionPath = array[MaxStateNestDepth, EventHandler]
 
 const
-  EmptySig* = Signal(Empty)
-  EntrySig* = Signal(Entry)
-  ExitSig* = Signal(Exit)
-  InitSig* = Signal(Init)
-  UserSig* = Signal(User)
+  ## System signals
+  EmptySig* = Empty.Signal
+  EntrySig* = Entry.Signal
+  ExitSig* = Exit.Signal
+  InitSig* = Init.Signal
+  ## System events (index via system signals *Sig)
   ReservedEvt* = [
     Event(sig: EmptySig, val: default(Value)),
     Event(sig: EntrySig, val: default(Value)),
@@ -113,17 +120,17 @@ template returnSuper*(self: untyped, newState: untyped) =
   self.currentHandler = newState.toEventHandler
   result = RetSuper
 
-template trig*(self: Awsm, state: EventHandler, sig: Signal): HandlerReturn =
+template trig(self: Awsm, state: EventHandler, sig: SysSignal): HandlerReturn =
   ## Triggers an event with the given reserved signal
-  state(self, ReservedEvt[sig])
+  state(self, ReservedEvt[sig.Signal])
 
 template enter*(self: Awsm, state: EventHandler): HandlerReturn =
   ## Triggers entry action in an Awsm
-  trig(self, state, EntrySig)
+  trig(self, state, Entry)
 
 template exit*(self: Awsm, state: EventHandler): HandlerReturn =
   ## Triggers exit action in an Awsm
-  trig(self, state, ExitSig)
+  trig(self, state, Exit)
 
 ####
 
@@ -139,11 +146,11 @@ proc init*(self: Awsm, evt: Event) =
     var pathIdx = 0'i8
     # Save the target of the initial transition
     path[0] = self.currentHandler
-    discard trig(self, self.currentHandler, EmptySig)
+    discard trig(self, self.currentHandler, Empty)
     while self.currentHandler != t:
       inc pathIdx
       path[pathIdx] = self.currentHandler
-      discard trig(self, self.currentHandler, EmptySig)
+      discard trig(self, self.currentHandler, Empty)
     # Restore the target of the initial transition
     self.currentHandler = path[0]
     # Retrace the entry path in reverse (desired) order
@@ -154,16 +161,16 @@ proc init*(self: Awsm, evt: Event) =
         break
     # Current state becomes the new source
     t = path[0]
-    if RetTransitioned != self.trig(t, InitSig):
+    if RetTransitioned != self.trig(t, Init):
       break
   self.currentHandler = t
 
 proc transitionSource(self: Awsm, current: var EventHandler, source: EventHandler) =
   ## Exit current state up to the transition source
   while current != source:
-    if RetHandled == trig(self, current, ExitSig):
+    if RetHandled == trig(self, current, Exit):
       # Find superstate of current
-      discard trig(self, current, EmptySig)
+      discard trig(self, current, Empty)
     # self.currentHandler holds the superstate
     current = self.currentHandler
 
@@ -175,7 +182,7 @@ proc transitionToSameState(self: Awsm, state: EventHandler): int8 {.inline.} =
 proc transitionToSubState(
     self: Awsm, source: EventHandler, target: EventHandler
 ): int8 {.inline.} =
-  discard trig(self, target, EmptySig)
+  discard trig(self, target, Empty)
   if self.currentHandler == source:
     self.currentHandler = target
     discard enter(self, target)
@@ -186,7 +193,7 @@ proc transitionToSubState(
 proc transitionToSuperState(
     self: Awsm, source: EventHandler, target: EventHandler
 ): int8 {.inline.} =
-  discard trig(self, source, EmptySig)
+  discard trig(self, source, Empty)
   if self.currentHandler == target:
     discard exit(self, source)
     self.currentHandler = target
@@ -206,14 +213,14 @@ proc transitionUpAndDown(
   pathIdx = -1'i8 # Start at -1 to avoid re-entering states
   target = self.currentHandler
 
-  r = trig(self, target, EmptySig)
+  r = trig(self, target, Empty)
 
   # Find the Least Common Ancestor (LCA)
   while r == RetSuper:
     if self.currentHandler != source: # Only add to path if not moving upward
       inc pathIdx
       path[pathIdx] = self.currentHandler
-      r = trig(self, self.currentHandler, EmptySig)
+      r = trig(self, self.currentHandler, Empty)
     else:
       r = RetHandled
 

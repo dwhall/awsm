@@ -9,7 +9,7 @@ import awsm
 
 type
   InputSignal = enum
-    A = UserSig, B, C, D, E, F, G, H, I
+    A = PublicSignalRange.low, B, C, D, E, F, G, H, I
 
   AllTransAwsm = ref object of Awsm
     foo: int
