@@ -154,7 +154,7 @@ proc init*(self: Awsm, evt: Event) =
       break
   self.currentHandler = t
 
-proc travelToTransitionSource(
+proc transitionSource(
     self: Awsm, current: var EventHandler, source: EventHandler
 ) =
   ## Exit current state up to the transition source
@@ -165,12 +165,12 @@ proc travelToTransitionSource(
     # self.currentHandler holds the superstate
     current = self.currentHandler
 
-proc handleTransitionToSameState(self: Awsm, state: EventHandler): int8 {.inline.} =
+proc transitionToSameState(self: Awsm, state: EventHandler): int8 {.inline.} =
   # Exit the current state.  Re-entering it happens when dispatch() calls executeEntryPath()
   discard exit(self, state)
   return 0'i8
 
-proc handleTransitionToSubState(
+proc transitionToSubState(
     self: Awsm, source: EventHandler, target: EventHandler
 ): int8 {.inline.} =
   discard trig(self, target, EmptySig)
@@ -181,18 +181,18 @@ proc handleTransitionToSubState(
   else:
     return -1'i8 # Indicates need for complex transition handling
 
-proc handleTransitionToParentState(
+proc transitionToSuperState(
     self: Awsm, source: EventHandler, target: EventHandler
 ): int8 {.inline.} =
   discard trig(self, source, EmptySig)
   if self.currentHandler == target:
     discard exit(self, source)
     self.currentHandler = target
-    return -2'i8  # Special return value to indicate successful parent transition
+    return -2'i8  # return value indicates super-state transition
   else:
     return -1'i8 # Indicates need for complex transition handling
 
-proc handleComplexTransition(
+proc transitionUpAndDown(
     self: Awsm,
     path: var TransitionPath,
     source: EventHandler,
@@ -260,20 +260,20 @@ proc dispatch*(self: Awsm, evt: Event) =
     let target = self.currentHandler
     let source = current
 
-    travelToTransitionSource(self, current, source)
+    transitionSource(self, current, source)
 
     # Determine transition type and handle accordingly
     if source == target:
-      pathIdx = handleTransitionToSameState(self, source)
+      pathIdx = transitionToSameState(self, source)
     else:
-      pathIdx = handleTransitionToSubState(self, source, target)
+      pathIdx = transitionToSubState(self, source, target)
       if pathIdx < 0'i8:
-        pathIdx = handleTransitionToParentState(self, source, target)
-        if pathIdx == -2'i8:  # Parent transition completed
+        pathIdx = transitionToSuperState(self, source, target)
+        if pathIdx == -2'i8:  # super-state transition completed
           return  # Skip entry actions
         if pathIdx < 0'i8:
           var targetState = target
-          pathIdx = handleComplexTransition(self, path, source, targetState)
+          pathIdx = transitionUpAndDown(self, path, source, targetState)
           current = targetState
 
     # Restore target and execute entry path if needed
