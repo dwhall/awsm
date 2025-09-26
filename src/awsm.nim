@@ -154,11 +154,9 @@ proc init*(self: Awsm, evt: Event) =
     # Restore the target of the initial transition
     self.currentHandler = path[0]
     # Retrace the entry path in reverse (desired) order
-    while true:
+    while pathIdx >= 0'i8:
       discard enter(self, path[pathIdx])
       dec pathIdx
-      if pathIdx < 0'i8:
-        break
     # Current state becomes the new source
     t = path[0]
     if RetTransitioned != self.trig(t, Init):
