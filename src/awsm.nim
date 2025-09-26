@@ -13,7 +13,7 @@ elif defined(val16):
 else:
   type Value* = int32
 
-const MaxStateNestDepth = 6
+const MaxHandlerNestDepth = 6
 
 type
   HandlerReturn* = enum
@@ -65,7 +65,7 @@ type
 
   EventHandler* = proc(self: Awsm, event: Event): HandlerReturn {.nimcall.}
 
-  TransitionPath = array[MaxStateNestDepth, EventHandler]
+  TransitionPath = array[MaxHandlerNestDepth, EventHandler]
 
 const
   ## System signals
@@ -89,23 +89,23 @@ template toEventHandler*[T: Awsm](
     handler: proc(self: T, event: Event): HandlerReturn {.nimcall.}
 ): EventHandler =
   ## Converts Awsm subtype EventHandler to Awsm EventHandler.
-  ## The .nimcall pragma forces all state handlers to be written in Nim for typesafety
+  ## The .nimcall pragma forces all handlers to be written in Nim for typesafety
   cast[EventHandler](handler)
 
 func newAwsm*(
-    evtQueueDepth: Natural, numChildren: Natural, initialState: EventHandler
+    evtQueueDepth: Natural, numChildren: Natural, initialHandler: EventHandler
 ): Awsm =
-  ## Create a new Awsm with the given event queue depth, number of children and initial state
+  ## Create a new Awsm with the given event queue depth, number of children and initial handler
   result.evtQueue = newSeqOfCap[Event](evtQueueDepth)
   result.children = newSeqOfCap[Awsm](numChildren)
-  result.currentHandler = initialState
+  result.currentHandler = initialHandler
 
 func postEvent*(self: Awsm, evt: Event) {.inline.} =
   ## Post an event to the Awsm's queue
   self.evtQueue.add(evt)
 
 proc top*(self: Awsm, evt: Event): HandlerReturn {.nimcall.} =
-  ## The top state ignores all events
+  ## The top handler ignores all events
   discard self
   discard evt
   RetIgnored
