@@ -55,8 +55,6 @@ proc newAllTransAwsm(): AllTransAwsm =
 proc s(self: AllTransAwsm, evt: Event): HandlerReturn =
   case evt.sig:
   of InitSig:
-    if self.foo != 0:
-      self.foo = 0
     returnTransitioned(self, s11)
   of EntrySig:
     inc self.entryCount
@@ -119,8 +117,6 @@ proc s11(self: AllTransAwsm, evt: Event): HandlerReturn =
 proc s2(self: AllTransAwsm, evt: Event): HandlerReturn =
   case evt.sig:
   of InitSig:
-    if self.foo == 0:
-      self.foo = 1
     returnTransitioned(self, s211)
   of EntrySig:
     return RetHandled
