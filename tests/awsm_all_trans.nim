@@ -3,7 +3,10 @@
 # This is a pedagogical state machine that contains all possible state
 # transition topologies up to four levels of state nesting;
 # making it a good example for testing the code which handles transitions.
-# Reference: PSiCC2, Figure 2.11, p. 88 (pdf p.105)
+# Reference: PSiCC2, Figure 2.11, p. 88 (PDF p.105)
+# https://www.state-machine.com/doc/PSiCC2.pdf
+# Fig 2.11 is updated in the PSiCC2 Errata, p. 6 (PDF p.11):
+# https://www.state-machine.com/doc/PSiCC2_Updates+Errata.pdf
 
 import awsm
 
@@ -145,7 +148,7 @@ proc s21(self: AllTransAwsm, evt: Event): HandlerReturn =
   of BSig:
     returnTransitioned(self, s211)
   of GSig:
-    returnTransitioned(self, s11)
+    returnTransitioned(self, s1)
   else:
     returnSuper(self, s2)
 

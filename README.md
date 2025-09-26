@@ -47,3 +47,4 @@ See LICENSE file for details
 - [PSiCC2.pdf](https://www.state-machine.com/doc/PSiCC2.pdf) — Samek, Miro,
   _Practical UML Statecharts in C/C++, Second Edition: Event-driven Programming for Embedded Systems_,
   Elsevier, 2009.  ISBN: 978-0-7506-8706-5
+- [PSiCC2 Updates+Errata](https://www.state-machine.com/doc/PSiCC2_Updates+Errata.pdf)

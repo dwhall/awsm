@@ -112,7 +112,7 @@ test "Transition up one, down one (reverse from other test)":
 test "Transition up two, down two":
   var a = newAllTransAwsm()
   a.currentHandler = s21.toEventHandler
-  a.dispatch(GEvt)
+  a.dispatch(FEvt)
   check a.currentHandler == s11.toEventHandler
 
 test "Initial transitions are respected":
