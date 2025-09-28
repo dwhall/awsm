@@ -27,7 +27,17 @@ test "Transition from initial state through all InitSig transitions":
   a.init(ReservedEvt[InitSig])
   check a.currentHandler == s211.toEventHandler
 
-test "Remain in current state":
+test "Unhandled event remains in current state":
+  var a = newAllTransAwsm()
+  a.currentHandler = s.toEventHandler
+  a.entryCount = 0
+  a.exitCount = 0
+  a.dispatch(AEvt)
+  check a.entryCount == 0
+  check a.exitCount == 0
+  check a.currentHandler == s.toEventHandler
+
+test "Handled event remains in current state":
   var a = newAllTransAwsm()
   a.currentHandler = s.toEventHandler
   a.entryCount = 0
