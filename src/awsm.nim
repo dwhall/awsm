@@ -15,7 +15,40 @@ else:
 
 const MaxHandlerNestDepth = 6
 
+# Allow the Signal type to be defined at compile-time,
+# default to 8-bit signed
+when defined(sig16):
+  type Signal* = int16
+elif defined(sig32):
+  type Signal* = int32
+else:
+  type Signal* = int8
+
+const sizeOfSignal = sizeof(Signal)
 type
+  ## System signals are not exported so that the user
+  ## cannot post/publish these signals
+  SysSignal {.size: sizeOfSignal.} = enum
+    Empty
+    Entry
+    Exit
+    Init
+  ## Private signals can only be sent through post() to self or child
+  PrivateSignalRange* = Signal.low .. Signal(pred SysSignal.low)
+  ## Public signals can be sent through post() or publish()
+  PublicSignalRange* = Signal(succ SysSignal.high) .. Signal.high
+
+  Event* = object
+    sig*: Signal
+    val*: Value
+
+  Actor = ref object of RootObj ## Actors have an event queue and can spawn children
+    evtQueue: seq[Event]
+    children: seq[Awsm]
+
+  Awsm* = ref object of Actor ## Awsm is an Actor with a state machine
+    currentHandler*: EventHandler
+
   HandlerReturn* = enum
     RetSuper
     #RetSuperSub
@@ -30,38 +63,6 @@ type
     #RetTransEp
     #RetTransHist
     #RetTransXp
-
-  # Signal ranges:
-  #    0 .. 127 : system and system-wide user events
-  # -128 ..  -1 : user events encapsulated in a software unit
-  Signal* = int8
-
-const sizeOfSignal = sizeof(Signal)
-type
-  ## System signals are not exported so that the user
-  ## cannot post/publish these signals
-  SysSignal {.size: sizeOfSignal.} = enum
-    Empty
-    Entry
-    Exit
-    Init
-
-  ## Private signals can only be sent through post() to self or child
-  PrivateSignalRange* = Signal.low .. Signal(pred SysSignal.low)
-  ## Public signals can be sent through post() or publish()
-  PublicSignalRange* = Signal(succ SysSignal.high) .. Signal.high
-
-type
-  Event* = object
-    sig*: Signal
-    val*: Value
-
-  Actor = ref object of RootObj ## Actors have an event queue and can spawn children
-    evtQueue: seq[Event]
-    children: seq[Awsm]
-
-  Awsm* = ref object of Actor ## Awsm is an Actor with a state machine
-    currentHandler*: EventHandler
 
   EventHandler* = proc(self: Awsm, event: Event): HandlerReturn {.nimcall.}
 
