@@ -238,18 +238,12 @@ proc executeEntryPath(self: Awsm, path: TransitionPath, pathIdx: int8) =
     discard enter(self, path[idx])
     dec idx
 
-proc handleHierarchicalEvent(self: Awsm, evt: Event): HandlerReturn =
-  ## Processes event hierarchically up the state chain
-  var s: EventHandler
-  var r: HandlerReturn
-
-  while true:
-    s = self.currentHandler
-    r = s(self, evt)
-    if r != RetSuper:
-      break
-
-  return r
+proc traceEventUpward(self: Awsm, evt: Event): HandlerReturn =
+  ## Trace an up the hierarchy as needed.
+  ## NOTE: This function may change self.currentHandler
+  result = self.currentHandler(self, evt)
+  while result == RetSuper:
+    result = self.currentHandler(self, evt)
 
 proc dispatch*(self: Awsm, evt: Event) =
   ## The current state handles the event
@@ -259,8 +253,7 @@ proc dispatch*(self: Awsm, evt: Event) =
   var pathIdx: int8
 
   # Process the event hierarchically
-  let r = handleHierarchicalEvent(self, evt)
-
+  let r = traceEventUpward(self, evt)
   if r == RetTransitioned:
     let target = self.currentHandler
     let source = current
