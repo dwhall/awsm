@@ -164,7 +164,7 @@ proc init*(self: Awsm, evt: Event) =
       break
   self.currentHandler = t
 
-proc transitionSource(self: Awsm, current: var EventHandler, source: EventHandler) =
+proc exitUpTo(self: Awsm, current: var EventHandler, source: EventHandler) =
   ## Exit current state up to the transition source
   while current != source:
     if RetHandled == trig(self, current, Exit):
@@ -258,7 +258,7 @@ proc dispatch*(self: Awsm, evt: Event) =
   let target = self.currentHandler
   let source = current
 
-  transitionSource(self, current, source)
+  exitUpTo(self, current, source)
 
   # Determine transition type and handle accordingly
   if source == target:
