@@ -125,7 +125,7 @@ test "Transition up two, down two":
   a.dispatch(FEvt)
   check a.currentHandler == s11.toEventHandler
 
-test "Initial transitions are respected":
+test "Initial transitions are taken":
   var a = newAllTransAwsm()
   a.init(ReservedEvt[InitSig])
   check a.currentHandler == s211.toEventHandler
