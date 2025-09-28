@@ -101,8 +101,6 @@ proc s1(self: AllTransAwsm, evt: Event): HandlerReturn =
 
 proc s11(self: AllTransAwsm, evt: Event): HandlerReturn =
   case evt.sig:
-  of InitSig:
-    return RetHandled
   of EntrySig:
     return RetHandled
   of ExitSig:
