@@ -246,38 +246,35 @@ proc traceEventUpward(self: Awsm, evt: Event): HandlerReturn =
     result = self.currentHandler(self, evt)
 
 proc dispatch*(self: Awsm, evt: Event) =
-  ## The current state handles the event
-  # Simplified main dispatch logic
-  var path: TransitionPath
+  ## Process the event through the Awsm's handler
+  # Exit early if the event does not cause a transition
   var current: EventHandler = self.currentHandler
-  var pathIdx: int8
-
-  # Process the event hierarchically
-  let r = traceEventUpward(self, evt)
-  if r == RetTransitioned:
-    let target = self.currentHandler
-    let source = current
-
-    transitionSource(self, current, source)
-
-    # Determine transition type and handle accordingly
-    if source == target:
-      pathIdx = transitionToSameState(self, source)
-    else:
-      pathIdx = transitionToSubState(self, source, target)
-      if pathIdx < 0'i8:
-        pathIdx = transitionToSuperState(self, source, target)
-        if pathIdx == -2'i8: # super-state transition completed
-          return # Skip entry actions
-        if pathIdx < 0'i8:
-          var targetState = target
-          pathIdx = transitionUpAndDown(self, path, source, targetState)
-          current = targetState
-
-    # Restore target and execute entry path if needed
-    if pathIdx >= 0'i8:
-      path[0] = target
-      executeEntryPath(self, path, pathIdx)
-  else:
-    # Only restore original state if no transition occurred
+  if RetTransitioned != traceEventUpward(self, evt):
     self.currentHandler = current
+    return
+
+  var path: TransitionPath
+  var pathIdx: int8
+  let target = self.currentHandler
+  let source = current
+
+  transitionSource(self, current, source)
+
+  # Determine transition type and handle accordingly
+  if source == target:
+    pathIdx = transitionToSameState(self, source)
+  else:
+    pathIdx = transitionToSubState(self, source, target)
+    if pathIdx < 0'i8:
+      pathIdx = transitionToSuperState(self, source, target)
+      if pathIdx == -2'i8: # super-state transition completed
+        return # Skip entry actions
+      if pathIdx < 0'i8:
+        var targetState = target
+        pathIdx = transitionUpAndDown(self, path, source, targetState)
+        current = targetState
+
+  # Restore target and execute entry path if needed
+  if pathIdx >= 0'i8:
+    path[0] = target
+    executeEntryPath(self, path, pathIdx)
