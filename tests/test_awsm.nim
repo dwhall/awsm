@@ -21,10 +21,18 @@ test "Converted states can still access custom fields":
   a.currentHandler = top.toEventHandler
   check a.foo == 42
 
-test "Transition from initial state through all InitSig transitions":
+test "Initial transitions are taken from implicit 'initial' handler":
+  var a = newAllTransAwsm()
+  a.init(ReservedEvt[InitSig])
+  check a.foo == 0
+  check a.currentHandler == s211.toEventHandler
+
+test "Initial transitions are taken from explicit 'initial' handler":
   var a = newAllTransAwsm()
   a.currentHandler = initial.toEventHandler
   a.init(ReservedEvt[InitSig])
+  check a.foo == 0
+  # Initial to s2, then to s211
   check a.currentHandler == s211.toEventHandler
 
 test "Unhandled event remains in current state":
@@ -56,7 +64,8 @@ test "Transition to current state":
   a.dispatch(AEvt)
   check a.entryCount == 1
   check a.exitCount == 1
-  check a.currentHandler == s1.toEventHandler
+  # After transition to self, follow initial transition to s11
+  check a.currentHandler == s11.toEventHandler
 
 test "Transition to parent state":
   var a = newAllTransAwsm()
@@ -89,7 +98,8 @@ test "Transition up two states":
   var a = newAllTransAwsm()
   a.currentHandler = s11.toEventHandler
   a.dispatch(HEvt)
-  check a.currentHandler == s.toEventHandler
+  # After transition to s, follow initial transition to s11
+  check a.currentHandler == s11.toEventHandler
 
 test "Transition down two states":
   var a = newAllTransAwsm()
@@ -106,7 +116,8 @@ test "Transition up one, down one":
   # should exit the source and enter the target (s2 doesn't affect counts)
   check a.entryCount == 0
   check a.exitCount == 1
-  check a.currentHandler == s2.toEventHandler
+  # After transition to s2, follow initial transition to s211
+  check a.currentHandler == s211.toEventHandler
 
 test "Transition up one, down one (reverse from other test)":
   var a = newAllTransAwsm()
@@ -117,7 +128,8 @@ test "Transition up one, down one (reverse from other test)":
   # should exit the source and enter the target (s2 doesn't affect counts)
   check a.entryCount == 1
   check a.exitCount == 0
-  check a.currentHandler == s1.toEventHandler
+  # After transition to s1, follow initial transition to s11
+  check a.currentHandler == s11.toEventHandler
 
 test "Transition up two, down two":
   var a = newAllTransAwsm()
@@ -125,8 +137,12 @@ test "Transition up two, down two":
   a.dispatch(FEvt)
   check a.currentHandler == s11.toEventHandler
 
-test "Initial transitions are taken":
+test "Indirect initial transitions are taken":
+  # Indirect initial transitions occur when a transition target
+  # has an initial transition, which must be processed.
   var a = newAllTransAwsm()
-  a.init(ReservedEvt[InitSig])
-  check a.currentHandler == s211.toEventHandler
-  check a.foo == 0
+  a.currentHandler = s211.toEventHandler
+  a.dispatch(GEvt)
+  # G transitions to s1, which has an initial transition to s11
+  #check a.currentHandler == s1.toEventHandler # this should fail, but passes
+  check a.currentHandler == s11.toEventHandler # this should pass, but fails

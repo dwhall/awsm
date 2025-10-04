@@ -135,34 +135,36 @@ template exit*(self: Awsm, state: EventHandler): HandlerReturn =
 
 ####
 
-proc init*(self: Awsm, evt: Event) =
-  ## Execute the top-most initial transition and enter the target
-  # Translated from PSiCC2.pdf, Listing 4.10, p 187
-  let r = self.currentHandler(self, evt)
-  assert r == RetTransitioned #, "Initial transition must return RetTransitioned"
-  # Start at the top state
-  var t: EventHandler = top
-  while true:
+proc handleInitialTransition(self: Awsm, sourceState: EventHandler): EventHandler =
+  ## Handles initial transitions starting from sourceState
+  ## Returns the final target state after all initial transitions
+  result = sourceState
+  if RetTransitioned == self.trig(sourceState, Init):
     var path: TransitionPath
     var pathIdx = 0'i8
     # Save the target of the initial transition
     path[0] = self.currentHandler
     discard trig(self, self.currentHandler, Empty)
-    while self.currentHandler != t:
+    while self.currentHandler != sourceState:
       inc pathIdx
       path[pathIdx] = self.currentHandler
       discard trig(self, self.currentHandler, Empty)
     # Restore the target of the initial transition
     self.currentHandler = path[0]
-    # Retrace the entry path in reverse (desired) order
+    # Retrace the entry path in reverse order
     while pathIdx >= 0'i8:
       discard enter(self, path[pathIdx])
       dec pathIdx
-    # Current state becomes the new source
-    t = path[0]
-    if RetTransitioned != self.trig(t, Init):
-      break
-  self.currentHandler = t
+    # Current state becomes result
+    result = path[0]
+    # Handle any further initial transitions
+    result = handleInitialTransition(self, result)
+
+proc init*(self: Awsm, evt: Event) =
+  ## Execute the top-most initial transition and enter the target
+  let r = self.currentHandler(self, evt)
+  assert r == RetTransitioned
+  self.currentHandler = handleInitialTransition(self, self.currentHandler)
 
 proc exitUpTo(self: Awsm, current: var EventHandler, source: EventHandler) =
   ## Exit current state up to the transition source
@@ -278,3 +280,4 @@ proc dispatch*(self: Awsm, evt: Event) =
   if pathIdx >= 0'i8:
     path[0] = target
     executeEntryPath(self, path, pathIdx)
+    self.currentHandler = handleInitialTransition(self, target)
