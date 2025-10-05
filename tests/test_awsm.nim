@@ -4,7 +4,6 @@ import unittest2
 
 include awsm_all_trans
 
-
 test "Plain states can test for state equality":
   var a = newAllTransAwsm()
   a.currentHandler = top

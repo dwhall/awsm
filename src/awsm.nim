@@ -156,8 +156,7 @@ proc handleInitialTransition(self: Awsm, sourceState: EventHandler): EventHandle
     while pathIdx >= 0'i8:
       discard enter(self, path[pathIdx])
       dec pathIdx
-    # Current state becomes result
-    result = path[0]
+    result = path[0] # Current state
     # Handle any further initial transitions
     result = handleInitialTransition(self, result)
 
@@ -168,18 +167,21 @@ proc init*(self: Awsm, evt: Event) =
   self.currentHandler = handleInitialTransition(self, self.currentHandler)
 
 proc exitUpTo(self: Awsm, current: var EventHandler, source: EventHandler) =
-  ## Exit current state up to the transition source
+  ## Exit current state up to source
   while current != source:
     if RetHandled == trig(self, current, Exit):
-      # Find superstate of current
       discard trig(self, current, Empty)
     # self.currentHandler holds the superstate
     current = self.currentHandler
 
 proc transitionToSameState(self: Awsm, state: EventHandler): int8 {.inline.} =
-  # Exit the current state.  Re-entering it happens when dispatch() calls executeEntryPath()
+  ## Transitioning to the same state is more than just remaining in the same state
+  ## it involves exiting and re-entering the state, and following any initial transitions
+  assert self.currentHandler == state
   discard exit(self, state)
-  return 0'i8
+  discard enter(self, state)
+  self.currentHandler = state
+  return -1'i8 # no additional entry path needed
 
 proc transitionToSubState(
     self: Awsm, source: EventHandler, target: EventHandler
@@ -188,9 +190,9 @@ proc transitionToSubState(
   if self.currentHandler == source:
     self.currentHandler = target
     discard enter(self, target)
-    return 0'i8
+    return -1'i8 # no additional entry path needed
   else:
-    return -1'i8 # Indicates need for complex transition handling
+    return -2'i8 # complex transition handling needed
 
 proc transitionToSuperState(
     self: Awsm, source: EventHandler, target: EventHandler
@@ -199,9 +201,9 @@ proc transitionToSuperState(
   if self.currentHandler == target:
     discard exit(self, source)
     self.currentHandler = target
-    return -2'i8 # return value indicates super-state transition
+    return -3'i8 # return value indicates super-state transition (no entry)
   else:
-    return -1'i8 # Indicates need for complex transition handling
+    return -2'i8 # Indicates need for complex transition handling
 
 proc transitionUpAndDown(
     self: Awsm, path: var TransitionPath, source: EventHandler, target: var EventHandler
@@ -265,20 +267,28 @@ proc dispatch*(self: Awsm, evt: Event) =
 
   # Determine transition type and handle accordingly
   if source == target:
+    # Self-transition: exit, enter, then handle initial transitions
     pathIdx = transitionToSameState(self, source)
   else:
     pathIdx = transitionToSubState(self, source, target)
-    if pathIdx < 0'i8:
+    if pathIdx == -2'i8: # Need complex transition
       pathIdx = transitionToSuperState(self, source, target)
-      if pathIdx == -2'i8: # super-state transition completed
-        return # Skip entry actions
-      if pathIdx < 0'i8:
+      if pathIdx == -3'i8: # super-state transition completed (no entry action)
+        # For superstate transitions, no initial transition handling
+        return
+      if pathIdx == -2'i8: # Still need complex transition
         var targetState = target
         pathIdx = transitionUpAndDown(self, path, source, targetState)
         current = targetState
+        # Execute entry path for complex transitions
+        if pathIdx >= 0'i8:
+          executeEntryPath(self, path, pathIdx)
+        # Now enter the target state itself
+        discard enter(self, target)
+        # Set handler to target before checking initial transitions
+        self.currentHandler = target
 
-  # Restore target and execute entry path if needed
-  if pathIdx >= 0'i8:
-    path[0] = target
-    executeEntryPath(self, path, pathIdx)
-    self.currentHandler = handleInitialTransition(self, target)
+  # Handle initial transitions from the target state
+  # This works for: same-state, sub-state, and complex transitions
+  # (but not superstate transitions which return early above)
+  self.currentHandler = handleInitialTransition(self, target)
