@@ -55,8 +55,7 @@ test "Handled event remains in current state":
   check a.exitCount == 0
   check a.currentHandler == s.toEventHandler
 
-test "Transition to current state":
-  # A transition to current state involves exit and re-entry.
+test "Transition to same state should exit, re-enter and follow initial":
   var a = newAllTransAwsm()
   a.currentHandler = s1.toEventHandler
   a.entryCount = 0
@@ -67,13 +66,20 @@ test "Transition to current state":
   # After transition to self, follow initial transition to s11
   check a.currentHandler == s11.toEventHandler
 
-test "Transition to parent state":
+test "This particular transition to same state does not change the awsm variable":
+  var a = newAllTransAwsm()
+  a.currentHandler = s1.toEventHandler
+  a.foo = 42
+  a.dispatch(AEvt)
+  check a.foo == 42
+
+test "An event can cause a transition to super state":
   var a = newAllTransAwsm()
   a.currentHandler = s1.toEventHandler
   a.dispatch(DEvt)
   check a.currentHandler == s.toEventHandler
 
-test "Transition to parent state should not re-enter parent":
+test "Transition to super state should not re-enter the super state":
   var a = newAllTransAwsm()
   a.currentHandler = s1.toEventHandler
   a.entryCount = 0
@@ -87,7 +93,7 @@ test "Transition to sub state":
   a.dispatch(BEvt)
   check a.currentHandler == s11.toEventHandler
 
-test "Transition to sub state should not exit source":
+test "Transition to sub state should not exit the starting state":
   var a = newAllTransAwsm()
   a.currentHandler = s1.toEventHandler
   a.exitCount = 0
