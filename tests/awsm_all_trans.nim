@@ -11,8 +11,8 @@
 import awsm
 
 type
-  InputSignal = enum
-    A = PublicSignalRange.low, B, C, D, E, F, G, H, I
+  AppSignal = enum
+    A = PubSignal.low, B, C, D, E, F, G, H, I
 
   AllTransAwsm = ref object of Awsm
     foo: int
@@ -20,15 +20,15 @@ type
     exitCount: int  # strictly for testing
 
 const
-  ASig = Signal(A)
-  BSig = Signal(B)
-  CSig = Signal(C)
-  DSig = Signal(D)
-  ESig = Signal(E)
-  FSig = Signal(F)
-  GSig = Signal(G)
-  HSig = Signal(H)
-  ISig = Signal(I)
+  ASig = A.PubSignal
+  BSig = B.PubSignal
+  CSig = C.PubSignal
+  DSig = D.PubSignal
+  ESig = E.PubSignal
+  FSig = F.PubSignal
+  GSig = G.PubSignal
+  HSig = H.PubSignal
+  ISig = I.PubSignal
 
   AEvt = Event(sig:ASig, val:0)
   BEvt = Event(sig:BSig, val:0)

@@ -15,29 +15,30 @@ else:
 
 const MaxHandlerNestDepth = 6
 
-# Allow the Signal type to be defined at compile-time,
-# default to 8-bit signed
+## A Signal, whose size is defined at compile-time
+## is an ordinal value that discriminates an Event
 when defined(sig16):
-  type Signal* = int16
+  type Signal = int16
 elif defined(sig32):
-  type Signal* = int32
+  type Signal = int32
 else:
-  type Signal* = int8
+  type Signal = int8
 
-const sizeOfSignal = sizeof(Signal)
+## There are three categories of signals for different uses
 type
-  ## System signals are not exported so that the user
-  ## cannot post/publish these signals
-  SysSignal {.size: sizeOfSignal.} = enum
-    Empty
-    Entry
-    Exit
-    Init
-  ## Private signals can only be sent through post() to self or child
-  PrivateSignalRange* = Signal.low .. Signal(pred SysSignal.low)
-  ## Public signals can be sent through post() or publish()
-  PublicSignalRange* = Signal(succ SysSignal.high) .. Signal.high
+  PrvSignal* = Signal.low .. -1.Signal
+  SysSignal = 0.Signal .. 3.Signal
+  PubSignal* = SysSignal.high + 1.Signal .. Signal.high
 
+## SysSignals are used internally by the Awsm framework
+## for hierarchical traversal of nested event handlers
+const
+  Empty = 0.SysSignal
+  Entry = 1.SysSignal
+  Exit = 2.SysSignal
+  Init = 3.SysSignal
+
+type
   Event* = object
     sig*: Signal
     val*: Value
