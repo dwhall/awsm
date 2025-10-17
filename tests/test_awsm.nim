@@ -4,6 +4,14 @@ import unittest2
 
 include awsm_all_trans
 
+echo "s:    " & repr s
+echo "s1:   " & repr s1
+echo "s11:  " & repr s11
+echo "s2:   " & repr s2
+echo "s21:  " & repr s21
+echo "s211: " & repr s211
+echo "top:  " & repr top
+
 test "Plain states can test for state equality":
   var a = newAllTransAwsm()
   a.currentHandler = top
@@ -151,3 +159,16 @@ test "Indirect initial transitions are taken":
   # G transitions to s1, which has an initial transition to s11
   #check a.currentHandler == s1.toEventHandler # this should fail, but passes
   check a.currentHandler == s11.toEventHandler # this should pass, but fails
+
+test "Indirect initial transitions are taken after transition to same state":
+  var a = newAllTransAwsm()
+  a.currentHandler = s11.toEventHandler
+  a.entryCount = 0
+  a.exitCount = 0
+  # s11 doesn't handle A, should go to s1 which handles A by transitioning to s1
+  a.dispatch(AEvt)
+  check a.exitCount == 1
+  check a.entryCount == 1
+  # After transition to s1, follow initial transition to s11
+  check a.currentHandler == s11.toEventHandler
+

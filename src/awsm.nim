@@ -156,9 +156,7 @@ proc handleInitialTransition(self: Awsm, sourceState: EventHandler): EventHandle
     while pathIdx >= 0'i8:
       discard enter(self, path[pathIdx])
       dec pathIdx
-    result = path[0] # Current state
-    # Handle any further initial transitions
-    result = handleInitialTransition(self, result)
+    result = handleInitialTransition(self, path[0])
 
 proc init*(self: Awsm, evt: Event) =
   ## Execute the top-most initial transition and enter the target
@@ -167,19 +165,17 @@ proc init*(self: Awsm, evt: Event) =
   self.currentHandler = handleInitialTransition(self, self.currentHandler)
 
 proc exitUpTo(self: Awsm, current: var EventHandler, source: EventHandler) =
-  ## Exit current state up to source
+  ## Exit current state up to the transition source
   while current != source:
     if RetHandled == trig(self, current, Exit):
+      # Find superstate of current
       discard trig(self, current, Empty)
-    # self.currentHandler holds the superstate
-    current = self.currentHandler
+    current = self.currentHandler # the superstate
 
 proc transitionToSameState(self: Awsm, state: EventHandler): int8 {.inline.} =
-  ## Transitioning to the same state is more than just remaining in the same state
-  ## it involves exiting and re-entering the state, and following any initial transitions
-  assert self.currentHandler == state
   discard exit(self, state)
   discard enter(self, state)
+  # Set current handler to the state we just re-entered
   self.currentHandler = state
   return -1'i8 # no additional entry path needed
 
@@ -201,37 +197,29 @@ proc transitionToSuperState(
   if self.currentHandler == target:
     discard exit(self, source)
     self.currentHandler = target
-    return -3'i8 # return value indicates super-state transition (no entry)
+    return -3'i8 # super-state transition (no entry)
   else:
-    return -2'i8 # Indicates need for complex transition handling
+    return -2'i8 # complex transition handling needed
 
 proc transitionUpAndDown(
     self: Awsm, path: var TransitionPath, source: EventHandler, target: var EventHandler
 ): int8 {.inline.} =
-  var pathIdx: int8
+  var pathIdx = -1'i8 # Start at -1 to avoid re-entering states
   var r: HandlerReturn
-
-  # Store original target state
   let originalTarget = target
 
-  pathIdx = -1'i8 # Start at -1 to avoid re-entering states
   target = self.currentHandler
 
-  r = trig(self, target, Empty)
-
   # Find the Least Common Ancestor (LCA)
+  r = trig(self, target, Empty) # superstate of target
   while r == RetSuper:
-    if self.currentHandler != source: # Only add to path if not moving upward
+    if self.currentHandler != source: # add to path if not moving upward
       inc pathIdx
       path[pathIdx] = self.currentHandler
       r = trig(self, self.currentHandler, Empty)
     else:
       r = RetHandled
-
-  # Exit source state if needed
   discard exit(self, source)
-
-  # Restore target state
   target = originalTarget
   self.currentHandler = originalTarget
   return pathIdx
@@ -243,25 +231,31 @@ proc executeEntryPath(self: Awsm, path: TransitionPath, pathIdx: int8) =
     discard enter(self, path[idx])
     dec idx
 
-proc traceEventUpward(self: Awsm, evt: Event): HandlerReturn =
-  ## Trace an up the hierarchy as needed.
+proc traceEventUpward(self: Awsm, evt: Event): tuple[result: HandlerReturn, source: EventHandler] =
+  ## Trace an event up the hierarchy as needed.
+  ## Returns the result and the state that handled the event (source of transition)
   ## NOTE: This function may change self.currentHandler
-  result = self.currentHandler(self, evt)
-  while result == RetSuper:
-    result = self.currentHandler(self, evt)
+  var sourceState = self.currentHandler
+  result.result = sourceState(self, evt)
+  while result.result == RetSuper:
+    sourceState = self.currentHandler  # Save the current state before calling it
+    result.result = sourceState(self, evt)
+  result.source = sourceState  # The state that returned something other than RetSuper
 
 proc dispatch*(self: Awsm, evt: Event) =
   ## Process the event through the Awsm's handler
   # Exit early if the event does not cause a transition
-  var current: EventHandler = self.currentHandler
-  if RetTransitioned != traceEventUpward(self, evt):
-    self.currentHandler = current
+  let startState: EventHandler = self.currentHandler
+  let (status, sourceState) = traceEventUpward(self, evt)
+  if status != RetTransitioned:
+    self.currentHandler = startState
     return
 
   var path: TransitionPath
   var pathIdx: int8
-  let target = self.currentHandler
-  let source = current
+  let target = self.currentHandler  # Where we're transitioning to (set by returnTransitioned)
+  let source = sourceState          # Where the transition was triggered
+  var current = startState          # Where we started from
 
   exitUpTo(self, current, source)
 
