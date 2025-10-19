@@ -30,14 +30,14 @@ test "Converted states can still access custom fields":
 
 test "Initial transitions are taken from implicit 'initial' handler":
   var a = newAllTransAwsm()
-  a.init(ReservedEvt[InitSig])
+  a.init()
   check a.foo == 0
   check a.currentHandler == s211.toEventHandler
 
 test "Initial transitions are taken from explicit 'initial' handler":
   var a = newAllTransAwsm()
   a.currentHandler = initial.toEventHandler
-  a.init(ReservedEvt[InitSig])
+  a.init()
   check a.foo == 0
   # Initial to s2, then to s211
   check a.currentHandler == s211.toEventHandler
