@@ -4,8 +4,17 @@
 ## an event-driven framework for real-time concurrency in embedded systems
 ##
 
-# Allow the Value type to be defined at compile-time,
-# default to 32-bit signed
+## The Signal is an ordinal value that discriminates an Event.
+## Its size is defined at compile-time, defaulting to 8-bit signed.
+when defined(sig16):
+  type Signal* = int16
+elif defined(sig32):
+  type Signal* = int32
+else:
+  type Signal* = int8
+
+## The Value is an optional, arbitrary value the accompanies a signal.
+## Its size is defined at compile-time, defaulting to 32-bit signed.
 when defined(val64):
   type Value* = int64
 elif defined(val16):
@@ -13,43 +22,31 @@ elif defined(val16):
 else:
   type Value* = int32
 
-const MaxHandlerNestDepth = 6
-
-## A Signal, whose size is defined at compile-time
-## is an ordinal value that discriminates an Event
-when defined(sig16):
-  type Signal = int16
-elif defined(sig32):
-  type Signal = int32
-else:
-  type Signal = int8
-
-## There are three categories of signals for different uses
 type
-  PrvSignal* = Signal.low .. -1.Signal
-  SysSignal = 0.Signal .. 3.Signal
-  PubSignal* = SysSignal.high + 1.Signal .. Signal.high
+  ## Actors receive events in a FIFO queue.
+  ## Actors can spawn children.
+  Actor = ref object of RootObj
+    evtQueue: seq[Event]
+    children: seq[Awsm]
 
-## SysSignals are used internally by the Awsm framework
-## for hierarchical traversal of nested event handlers
-const
-  Empty = 0.SysSignal
-  Entry = 1.SysSignal
-  Exit = 2.SysSignal
-  Init = 3.SysSignal
+  ## Awsm is an Actor with a state machine
+  Awsm* = ref object of Actor
+    currentHandler*: EventHandler
 
-type
+  ## Events are the primary communication between Actors.
+  ## Events are posted from one Actor to a child Actor,
+  ## or published to the framework so that every Actor
+  ## subscribed to that Signal receives the Event.
   Event* = object
     sig*: Signal
     val*: Value
 
-  Actor = ref object of RootObj ## Actors have an event queue and can spawn children
-    evtQueue: seq[Event]
-    children: seq[Awsm]
+  ## An Actor has one or more EventHandler, which can transition
+  ## to another EventHandler in response to an Event; forming a state machine.
+  EventHandler* = proc(self: Awsm, event: Event): HandlerReturn {.nimcall.}
 
-  Awsm* = ref object of Actor ## Awsm is an Actor with a state machine
-    currentHandler*: EventHandler
-
+  ## Every EventHandler returns a HandlerReturn code to indicate
+  ## how the event was processed.
   HandlerReturn* = enum
     RetSuper
     #RetSuperSub
@@ -65,17 +62,32 @@ type
     #RetTransHist
     #RetTransXp
 
-  EventHandler* = proc(self: Awsm, event: Event): HandlerReturn {.nimcall.}
-
-  TransitionPath = seq[EventHandler]
+  ## There are three categories of signals for different uses.
+  ## Private signals are posted to self and children only; they cannot be published.
+  ## System signals are reserved for use by the Awsm framework.
+  ## Public signals are used for inter-actor communication via publishing,
+  ## but may also be posted to self and children.
+  PrvSignal* = Signal.low .. -1.Signal
+  SysSignal = 0.Signal .. 3.Signal
+  PubSignal* = SysSignal.high + 1.Signal .. Signal.high
 
 const
+  ## The maximum nesting depth of event handlers
+  MaxHandlerNestDepth = 6
+
+  ## SysSignals are used internally by the Awsm framework
+  ## for hierarchical traversal of nested event handlers
+  Empty = 0.SysSignal
+  Entry = 1.SysSignal
+  Exit = 2.SysSignal
+  Init = 3.SysSignal
   ## System signals
   EmptySig* = Empty.Signal
   EntrySig* = Entry.Signal
   ExitSig* = Exit.Signal
   InitSig* = Init.Signal
-  ## System events (index via system signals *Sig)
+  ## System events (index via system signals *Sig) are declared constants
+  ## as an optimization to avoid repeated construction of often-used events
   ReservedEvt* = [
     Event(sig: EmptySig, val: default(Value)),
     Event(sig: EntrySig, val: default(Value)),
@@ -85,6 +97,7 @@ const
 
 when not defined(release):
   func `$`*(s: EventHandler): string =
+    ## Emits the handler's address as a string for indentification
     result = s.repr
 
 template toEventHandler*[T: Awsm](
