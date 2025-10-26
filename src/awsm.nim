@@ -211,7 +211,7 @@ proc executeTransition(self: Awsm, source, target: EventHandler) =
   discard trig(self, source, Empty)
   if self.currentHandler == target:
     discard exit(self, source)
-    self.currentHandler = target
+    self.currentHandler = followInitialTransitions(self, target)
     return
 
   # Special case: transition to direct substate

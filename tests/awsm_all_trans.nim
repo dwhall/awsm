@@ -102,8 +102,10 @@ proc s1(self: AllTransAwsm, evt: Event): HandlerReturn =
 proc s11(self: AllTransAwsm, evt: Event): HandlerReturn =
   case evt.sig:
   of EntrySig:
+    inc self.entryCount
     return RetHandled
   of ExitSig:
+    inc self.exitCount
     return RetHandled
   of DSig:
     if self.foo != 0: self.foo = 0
@@ -120,8 +122,10 @@ proc s2(self: AllTransAwsm, evt: Event): HandlerReturn =
   of InitSig:
     returnTransitioned(self, s211)
   of EntrySig:
+    inc self.entryCount
     return RetHandled
   of ExitSig:
+    inc self.exitCount
     return RetHandled
   of CSig:
     returnTransitioned(self, s1)
@@ -138,8 +142,10 @@ proc s21(self: AllTransAwsm, evt: Event): HandlerReturn =
   of InitSig:
     returnTransitioned(self, s211)
   of EntrySig:
+    inc self.entryCount
     return RetHandled
   of ExitSig:
+    inc self.exitCount
     return RetHandled
   of ASig:
     returnTransitioned(self, s21)
@@ -152,6 +158,12 @@ proc s21(self: AllTransAwsm, evt: Event): HandlerReturn =
 
 proc s211(self: AllTransAwsm, evt: Event): HandlerReturn =
   case evt.sig:
+  of EntrySig:
+    inc self.entryCount
+    return RetHandled
+  of ExitSig:
+    inc self.exitCount
+    return RetHandled
   of DSig:
     returnTransitioned(self, s21)
   of HSig:

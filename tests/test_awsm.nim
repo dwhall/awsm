@@ -48,8 +48,8 @@ test "Unhandled event remains in current state":
   a.entryCount = 0
   a.exitCount = 0
   a.dispatch(AEvt)
-  check a.entryCount == 0
   check a.exitCount == 0
+  check a.entryCount == 0
   check a.currentHandler == s.toEventHandler
 
 test "Handled event remains in current state":
@@ -58,8 +58,8 @@ test "Handled event remains in current state":
   a.entryCount = 0
   a.exitCount = 0
   a.dispatch(IEvt)
-  check a.entryCount == 0
   check a.exitCount == 0
+  check a.entryCount == 0
   check a.currentHandler == s.toEventHandler
 
 test "Transition to same state should exit, re-enter and follow initial":
@@ -68,8 +68,8 @@ test "Transition to same state should exit, re-enter and follow initial":
   a.entryCount = 0
   a.exitCount = 0
   a.dispatch(AEvt)
-  check a.entryCount == 1
-  check a.exitCount == 1
+  check a.exitCount == 1  # exit s1
+  check a.entryCount == 2  # enter s1, enter s11
   # After transition to self, follow initial transition to s11
   check a.currentHandler == s11.toEventHandler
 
@@ -84,15 +84,17 @@ test "An event can cause a transition to super state":
   var a = newAllTransAwsm()
   a.currentHandler = s1.toEventHandler
   a.dispatch(DEvt)
-  check a.currentHandler == s.toEventHandler
+  # from s1, D transitions to s, then initial transition to s11
+  check a.currentHandler == s11.toEventHandler
 
-test "Transition to super state should not re-enter the super state":
+test "Transition to super state should enter via initial transition":
   var a = newAllTransAwsm()
   a.currentHandler = s1.toEventHandler
   a.entryCount = 0
+  a.exitCount = 0
   a.dispatch(DEvt)
-  check a.entryCount == 0
-  check a.currentHandler == s.toEventHandler
+  check a.exitCount == 1  # exit s1
+  check a.entryCount == 2  # enter s1, s11
 
 test "Transition to sub state":
   var a = newAllTransAwsm()
@@ -103,9 +105,11 @@ test "Transition to sub state":
 test "Transition to sub state should not exit the starting state":
   var a = newAllTransAwsm()
   a.currentHandler = s1.toEventHandler
+  a.entryCount = 0
   a.exitCount = 0
   a.dispatch(BEvt)
   check a.exitCount == 0
+  check a.entryCount == 1  # enter s11
 
 test "Transition up two states":
   var a = newAllTransAwsm()
@@ -126,9 +130,8 @@ test "Transition up one, down one":
   a.entryCount = 0
   a.exitCount = 0
   a.dispatch(CEvt)
-  # should exit the source and enter the target (s2 doesn't affect counts)
-  check a.entryCount == 0
-  check a.exitCount == 1
+  check a.exitCount == 1  # exit s1
+  check a.entryCount == 3  # enter s2, s21, s211
   # After transition to s2, follow initial transition to s211
   check a.currentHandler == s211.toEventHandler
 
@@ -138,9 +141,8 @@ test "Transition up one, down one (reverse from other test)":
   a.entryCount = 0
   a.exitCount = 0
   a.dispatch(CEvt)
-  # should exit the source and enter the target (s2 doesn't affect counts)
-  check a.entryCount == 1
-  check a.exitCount == 0
+  check a.exitCount == 1  # exit s2
+  check a.entryCount == 2  # enter s1, s11
   # After transition to s1, follow initial transition to s11
   check a.currentHandler == s11.toEventHandler
 
@@ -157,18 +159,43 @@ test "Indirect initial transitions are taken":
   a.currentHandler = s211.toEventHandler
   a.dispatch(GEvt)
   # G transitions to s1, which has an initial transition to s11
-  #check a.currentHandler == s1.toEventHandler # this should fail, but passes
-  check a.currentHandler == s11.toEventHandler # this should pass, but fails
+  check a.currentHandler == s11.toEventHandler
 
 test "Indirect initial transitions are taken after transition to same state":
   var a = newAllTransAwsm()
   a.currentHandler = s11.toEventHandler
   a.entryCount = 0
   a.exitCount = 0
-  # s11 doesn't handle A, should go to s1 which handles A by transitioning to s1
   a.dispatch(AEvt)
-  check a.exitCount == 1
-  check a.entryCount == 1
+  check a.exitCount == 2  # exit s11, exit s1
+  check a.entryCount == 2  # enter s1, enter s11
   # After transition to s1, follow initial transition to s11
   check a.currentHandler == s11.toEventHandler
 
+test "Sequential transitions from PSiCC2 Fig. 2.12":
+  var a = newAllTransAwsm()
+  a.init()
+  check a.currentHandler == s211.toEventHandler
+  a.dispatch(GEvt)  # s211 -G-> s1 (then initial to s11)
+  check a.currentHandler == s11.toEventHandler
+  a.dispatch(IEvt)  # s11 -I-> (handled, stay in s11)
+  check a.currentHandler == s11.toEventHandler
+  a.dispatch(AEvt)  # s11 -> s1 -A-> s1 (self-transition, then initial to s11)
+  check a.currentHandler == s11.toEventHandler
+  a.dispatch(DEvt)  # s11 -> s1 -D-> s (then initial to s11)
+  check a.currentHandler == s11.toEventHandler
+  a.dispatch(DEvt)  # s11 -D-> top (handled by s, me->foo = 0, stay in s11)
+  check a.currentHandler == s11.toEventHandler
+  check a.foo == 0
+  a.dispatch(CEvt)  # s11 -> s1 -C-> s2 (then initial to s211)
+  check a.currentHandler == s211.toEventHandler
+  a.dispatch(EEvt)  # s211 -> s2 -E-> s1 (then initial to s11)
+  check a.currentHandler == s11.toEventHandler
+  a.dispatch(EEvt)  # s11 -> s -E-> s1 (then initial to s11)
+  check a.currentHandler == s11.toEventHandler
+  a.dispatch(GEvt)  # s11 -G-> s2 (then initial to s211)
+  check a.currentHandler == s211.toEventHandler
+  a.dispatch(IEvt)  # s211 -I-> (handled, stay in s211)
+  check a.currentHandler == s211.toEventHandler
+  a.dispatch(IEvt)  # s211 -I-> (handled, stay in s211)
+  check a.currentHandler == s211.toEventHandler
