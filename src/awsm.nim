@@ -1,7 +1,9 @@
 ## Copyright 2025 Dean Hall
 ##
-## awsm: actors with state machines.
+## awsm: active objects with state machines.
 ## an event-driven framework for real-time concurrency in embedded systems
+##
+## Reference: https://www.state-machine.com/active-object
 ##
 
 ## The Signal is an ordinal value that discriminates an Event.
@@ -13,7 +15,7 @@ elif defined(sig32):
 else:
   type Signal* = int8
 
-## The Value is an optional, arbitrary value the accompanies a signal.
+## The Value is an optional, arbitrary value that accompanies a signal.
 ## Its size is defined at compile-time, defaulting to 32-bit signed.
 when defined(val64):
   type Value* = int64
@@ -23,25 +25,21 @@ else:
   type Value* = int32
 
 type
-  ## Actors receive events in a FIFO queue.
-  ## Actors can spawn children.
-  Actor = ref object of RootObj
+  ## An Awsm is an Active object With a State Machine that acts on
+  ## events serialized in its event queue.  It can also spawn child Awsms.
+  Awsm* = ref object of RootObj
+    currentHandler*: EventHandler
     evtQueue: seq[Event]
     children: seq[Awsm]
 
-  ## Awsm is an Actor with a state machine
-  Awsm* = ref object of Actor
-    currentHandler*: EventHandler
-
-  ## Events are the primary communication between Actors.
-  ## Events are posted from one Actor to a child Actor,
-  ## or published to the framework so that every Actor
-  ## subscribed to that Signal receives the Event.
+  ## Events are the fundamental and primary communication between Awsms.
+  ## Events are posted from one Awsm to a child Awsm,
+  ## or published so that every Awsm might receive the Event.
   Event* = object
     sig*: Signal
     val*: Value
 
-  ## An Actor has one or more EventHandler, which can transition
+  ## An Awsm has at least one EventHandler, which may optionally transition
   ## to another EventHandler in response to an Event; forming a state machine.
   EventHandler* = proc(self: Awsm, event: Event): HandlerReturn {.nimcall.}
 
@@ -62,10 +60,10 @@ type
     #RetTransHist
     #RetTransXp
 
-  ## There are three categories of signals for different uses.
+  ## There are three categories of signals meant for different use cases.
   ## Private signals are posted to self and children only; they cannot be published.
-  ## System signals are reserved for use by the Awsm framework.
-  ## Public signals are used for inter-actor communication via publishing,
+  ## System signals are for use by the Awsm framework.
+  ## Public signals are used for inter-Awsm communication via publishing,
   ## but may also be posted to self and children.
   PrvSignal* = Signal.low .. -1.Signal
   SysSignal = 0.Signal .. 3.Signal
@@ -86,9 +84,9 @@ const
   EntrySig* = Entry.Signal
   ExitSig* = Exit.Signal
   InitSig* = Init.Signal
-  ## System events (index via system signals *Sig) are declared constants
+  ## System events (index via system signals) are declared constants
   ## as an optimization to avoid repeated construction of often-used events
-  ReservedEvt* = [
+  SystemEvt = [
     Event(sig: EmptySig, val: default(Value)),
     Event(sig: EntrySig, val: default(Value)),
     Event(sig: ExitSig, val: default(Value)),
@@ -97,23 +95,15 @@ const
 
 when not defined(release):
   func `$`*(s: EventHandler): string =
-    ## Emits the handler's address as a string for indentification
+    ## Emits the handler's address as a string to help debugging
     result = s.repr
 
 template toEventHandler*[T: Awsm](
     handler: proc(self: T, event: Event): HandlerReturn {.nimcall.}
 ): EventHandler =
-  ## Converts Awsm subtype EventHandler to Awsm EventHandler.
+  ## Converts the EventHandler of an Awsm subtype to an Awsm EventHandler.
   ## The .nimcall pragma forces all handlers to be written in Nim for typesafety
   cast[EventHandler](handler)
-
-func newAwsm*(
-    evtQueueDepth: Natural, numChildren: Natural, initialHandler: EventHandler
-): Awsm =
-  ## Create a new Awsm with the given event queue depth, number of children and initial handler
-  result.evtQueue = newSeqOfCap[Event](evtQueueDepth)
-  result.children = newSeqOfCap[Awsm](numChildren)
-  result.currentHandler = initialHandler
 
 func postEvent*(self: Awsm, evt: Event) {.inline.} =
   ## Post an event to the Awsm's queue
@@ -125,19 +115,19 @@ proc top*(self: Awsm, evt: Event): HandlerReturn {.nimcall.} =
   discard evt
   RetIgnored
 
-template returnTransitioned*(self: untyped, newState: untyped) =
+template returnTransitioned*(self: untyped, nextHandler: untyped) =
   ## Ensures the handler returns "RetTransitioned" when the state changes
-  self.currentHandler = newState.toEventHandler
+  self.currentHandler = nextHandler.toEventHandler
   result = RetTransitioned
 
-template returnSuper*(self: untyped, newState: untyped) =
+template returnSuper*(self: untyped, superHandler: untyped) =
   ## Ensures the handler returns "RetSuper" when the state changes
-  self.currentHandler = newState.toEventHandler
+  self.currentHandler = superHandler.toEventHandler
   result = RetSuper
 
 template trig(self: Awsm, state: EventHandler, sig: SysSignal): HandlerReturn =
-  ## Triggers an event with the given reserved signal
-  state(self, ReservedEvt[sig.Signal])
+  ## Triggers an event with the given system signal
+  state(self, SystemEvt[sig.Signal])
 
 template enter*(self: Awsm, state: EventHandler): HandlerReturn =
   ## Triggers entry action in an Awsm
@@ -171,7 +161,7 @@ proc followInitialTransitions(self: Awsm, source: EventHandler): EventHandler =
 
 proc init*(self: Awsm) =
   ## Execute the top-most and all subsequent initial transitions
-  assert self.currentHandler(self, ReservedEvt[InitSig]) == RetTransitioned
+  assert self.currentHandler(self, SystemEvt[InitSig]) == RetTransitioned
   self.currentHandler = followInitialTransitions(self, self.currentHandler)
 
 proc findLCA(self: Awsm, source, target: EventHandler): EventHandler =
